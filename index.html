@@ -249,6 +249,18 @@
   .edit-section h2{
     margin:0 0 10px;font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
   }
+  .edit-section summary{
+    margin:0;padding:2px 0;
+    font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
+    cursor:pointer;list-style:none;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .edit-section summary::-webkit-details-marker{display:none;}
+  .edit-section summary::after{
+    content:'▸';font-size:11px;color:var(--ink-dim);transition:transform .15s;
+  }
+  .edit-section details[open] summary{margin-bottom:10px;}
+  .edit-section details[open] summary::after{transform:rotate(90deg);}
   .field-label{
     font:700 10px/1 -apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:8px;
   }
@@ -582,6 +594,7 @@
 
   var data = loadData();
   var currentPeriod = 0; // 0-indexed, 0..5
+  var squadExpanded = false; // Squad section starts collapsed on Edit Team
 
   /* ---------- Match clock (45 min per half stopwatch) ---------- */
 
@@ -1060,10 +1073,12 @@
 
     host.innerHTML =
       '<div class="edit-section">'+
-        '<h2>Squad</h2>'+
-        '<div class="field-label">Player Name</div>'+
-        '<div id="rosterList">'+rosterHtml+'</div>'+
-        '<button class="add-btn" id="addPlayerBtn">+ Add player</button>'+
+        '<details id="squadDetails"'+(squadExpanded?' open':'')+'>'+
+          '<summary>Squad</summary>'+
+          '<div class="field-label">Player Name</div>'+
+          '<div id="rosterList">'+rosterHtml+'</div>'+
+          '<button class="add-btn" id="addPlayerBtn">+ Add player</button>'+
+        '</details>'+
       '</div>'+
       '<div class="edit-section">'+
         '<h2>Formation</h2>'+
@@ -1091,6 +1106,10 @@
       '</div>';
 
     document.getElementById('backupText').value = JSON.stringify(data, null, 2);
+
+    document.getElementById('squadDetails').addEventListener('toggle', function(){
+      squadExpanded = this.open;
+    });
 
     document.querySelectorAll('.playerNameInput').forEach(function(inp){
       inp.addEventListener('change', function(){
