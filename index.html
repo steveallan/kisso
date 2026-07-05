@@ -159,6 +159,12 @@
   .card h2{
     margin:0 0 10px;font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
   }
+  .pitch-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .pitch-card-header h2{margin:0;}
+  .formation-badge{
+    font:800 11px -apple-system,sans-serif;letter-spacing:.03em;color:var(--royal);
+    background:var(--navy-tint);padding:3px 8px;border-radius:6px;
+  }
 
   .pitch{
     position:relative;overflow:hidden;border-radius:12px;
@@ -1014,7 +1020,10 @@
         '<button class="step-btn" id="nextBtn" '+(isLast?'disabled':'')+'>›</button>'+
       '</div>'+
       '<div class="content">'+
-        '<div class="card"><h2>On Pitch</h2>'+linesHtml+'</div>'+
+        '<div class="card">'+
+          '<div class="pitch-card-header"><h2>On Pitch</h2><span class="formation-badge">'+escapeHtml(data.formation)+'</span></div>'+
+          linesHtml+
+        '</div>'+
         '<div class="card">'+
           '<div class="bench-next-grid">'+
             '<div class="bench-col"><h2>Bench</h2>'+benchHtml+'</div>'+
