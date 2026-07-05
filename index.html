@@ -244,10 +244,18 @@
   .field-label{
     font:700 10px/1 -apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:8px;
   }
-  .roster-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .roster-item{margin-bottom:12px;}
+  .roster-row{display:flex;gap:8px;align-items:center;}
   .roster-row input[type=text]{
     flex:1 1 0;min-width:0;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:600 14px/1 -apple-system,sans-serif;background:#fff;color:var(--ink);
   }
+  .category-toggle{display:flex;gap:6px;margin-top:6px;}
+  .category-btn{
+    flex:1;padding:5px 0;border-radius:6px;border:none;cursor:pointer;
+    font:700 10px/1 -apple-system,sans-serif;letter-spacing:.04em;
+    background:var(--navy-tint);color:var(--navy);
+  }
+  .category-btn.active{background:var(--navy);color:#fff;}
   .icon-btn{
     width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--off);
     font-size:16px;cursor:pointer;flex:0 0 auto;
@@ -395,9 +403,17 @@
     return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
   }
 
+  function ensureCategoriesField(players){
+    players.forEach(function(pl){
+      if(!pl.categories) pl.categories = [];
+    });
+  }
+
   function defaultData(){
+    var players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
+    ensureCategoriesField(players);
     return {
-      players: JSON.parse(JSON.stringify(DEFAULT_PLAYERS)),
+      players: players,
       assignments: JSON.parse(JSON.stringify(DEFAULT_ASSIGN)),
       periodLabels: DEFAULT_PERIOD_LABELS.slice(),
       periodHalves: DEFAULT_PERIOD_HALF.slice(),
@@ -448,6 +464,7 @@
         if(!d.periodsPerHalf){
           d.periodsPerHalf = Math.round((d.periodLabels||[]).length / 2) || 3;
         }
+        ensureCategoriesField(d.players);
         if(applyOneOffRenames(d)) localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
         return d;
       }
@@ -612,7 +629,7 @@
 
   function ensureAssignRow(id){
     if(!data.assignments[id]){
-      data.assignments[id] = ['SUB','SUB','SUB','SUB','SUB','SUB'];
+      data.assignments[id] = data.periodLabels.map(function(){return 'SUB';});
     }
   }
 
@@ -919,9 +936,17 @@
     var host = document.getElementById('editView');
 
     var rosterHtml = sortedPlayers().map(function(pl){
-      return '<div class="roster-row">'+
-        '<input type="text" data-id="'+pl.id+'" class="playerNameInput" value="'+escapeHtml(pl.name)+'">'+
-        '<button class="icon-btn removePlayerBtn" data-id="'+pl.id+'">✕</button>'+
+      var cats = pl.categories || [];
+      var catBtns = ['DEF','MID','ATK'].map(function(code){
+        var active = cats.indexOf(code) !== -1;
+        return '<button type="button" class="category-btn'+(active?' active':'')+'" data-id="'+pl.id+'" data-cat="'+code+'">'+code+'</button>';
+      }).join('');
+      return '<div class="roster-item">'+
+        '<div class="roster-row">'+
+          '<input type="text" data-id="'+pl.id+'" class="playerNameInput" value="'+escapeHtml(pl.name)+'">'+
+          '<button class="icon-btn removePlayerBtn" data-id="'+pl.id+'">✕</button>'+
+        '</div>'+
+        '<div class="category-toggle">'+catBtns+'</div>'+
         '</div>';
     }).join('');
 
@@ -988,13 +1013,26 @@
       });
     });
 
+    document.querySelectorAll('.category-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var pl = data.players.filter(function(p){return p.id===btn.dataset.id;})[0];
+        if(!pl) return;
+        if(!pl.categories) pl.categories = [];
+        var cat = btn.dataset.cat;
+        var idx = pl.categories.indexOf(cat);
+        if(idx === -1) pl.categories.push(cat); else pl.categories.splice(idx,1);
+        saveData();
+        renderEdit();
+      });
+    });
+
     document.getElementById('addPlayerBtn').addEventListener('click', function(){
       var input = prompt('Player name?');
       var name = (input||'').trim();
       if(name){
         var id = makeId();
-        data.players.push({id:id, name:name});
-        data.assignments[id] = ['SUB','SUB','SUB','SUB','SUB','SUB'];
+        data.players.push({id:id, name:name, categories:[]});
+        data.assignments[id] = data.periodLabels.map(function(){return 'SUB';});
         saveData();
         renderEdit();
       }
@@ -1055,6 +1093,7 @@
           if(!parsed.periodsPerHalf){
             parsed.periodsPerHalf = Math.round((parsed.periodLabels||[]).length / 2) || 3;
           }
+          ensureCategoriesField(parsed.players);
           data = parsed;
           currentPeriod = 0;
           saveData();
