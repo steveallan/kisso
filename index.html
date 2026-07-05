@@ -304,6 +304,33 @@
     width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);
     font:600 14px -apple-system,sans-serif;background:#fff;color:var(--ink);
   }
+  .lineup-status{
+    font:700 12px -apple-system,sans-serif;color:var(--ink-dim);margin-bottom:10px;
+  }
+  .lineup-status.warn{color:var(--off);}
+  .lineup-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .lineup-pos{
+    flex:0 0 44px;text-align:center;font:800 11px -apple-system,sans-serif;letter-spacing:.02em;
+    color:var(--royal);background:var(--navy-tint);padding:7px 0;border-radius:6px;
+  }
+  .lineup-row select{
+    flex:1;min-width:0;padding:8px;border-radius:8px;border:1px solid var(--line);
+    font:600 13px -apple-system,sans-serif;background:#fff;color:var(--ink);
+  }
+  .reserve-row{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 10px;border-radius:8px;margin-bottom:6px;background:var(--ground);
+  }
+  .reserve-row.unavailable{background:var(--off-tint);}
+  .reserve-name{flex:1;font:600 14px -apple-system,sans-serif;color:var(--ink);}
+  .reserve-toggle{display:flex;gap:6px;flex:0 0 auto;}
+  .reserve-btn{
+    padding:5px 10px;border-radius:6px;border:none;cursor:pointer;
+    font:700 10px/1 -apple-system,sans-serif;letter-spacing:.03em;text-transform:uppercase;
+    background:var(--navy-tint);color:var(--navy);
+  }
+  .reserve-btn.active{background:var(--navy);color:#fff;}
+  .reserve-btn.unavailable-btn.active{background:var(--off);}
   .periods-slider-row{margin-bottom:14px;}
   .periods-slider-row input[type=range]{width:100%;accent-color:var(--navy);}
   .periods-slider-readout{
@@ -457,6 +484,15 @@
     return f ? f.rows : FORMATIONS[DEFAULT_FORMATION].rows;
   }
 
+  // Flatten the formation into a GK-first list, for the Starting Lineup table.
+  function getStartingLineupPositions(){
+    var codes = [];
+    getFormationRows().slice().reverse().forEach(function(row){
+      row.forEach(function(code){ codes.push(code); });
+    });
+    return codes;
+  }
+
   function formationCodeSet(key){
     var set = {};
     (FORMATIONS[key] ? FORMATIONS[key].rows : []).forEach(function(row){
@@ -524,15 +560,16 @@
     return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
   }
 
-  function ensureCategoriesField(players){
+  function ensurePlayerFields(players){
     players.forEach(function(pl){
       if(!pl.categories) pl.categories = [];
+      if(typeof pl.unavailable !== 'boolean') pl.unavailable = false;
     });
   }
 
   function defaultData(){
     var players = JSON.parse(JSON.stringify(DEFAULT_PLAYERS));
-    ensureCategoriesField(players);
+    ensurePlayerFields(players);
     return {
       players: players,
       assignments: JSON.parse(JSON.stringify(DEFAULT_ASSIGN)),
@@ -587,7 +624,7 @@
           d.periodsPerHalf = Math.round((d.periodLabels||[]).length / 2) || 3;
         }
         if(!d.formation || !FORMATIONS[d.formation]) d.formation = DEFAULT_FORMATION;
-        ensureCategoriesField(d.players);
+        ensurePlayerFields(d.players);
         if(applyOneOffRenames(d)) localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
         return d;
       }
@@ -687,7 +724,7 @@
   function showScorerPicker(){
     var picker = document.getElementById('scorerPicker');
     if(!picker) return;
-    var options = sortedPlayers().map(function(pl){
+    var options = sortedPlayers().filter(function(pl){ return !pl.unavailable; }).map(function(pl){
       return '<option value="'+pl.id+'">'+escapeHtml(pl.name)+'</option>';
     }).join('');
     picker.innerHTML =
@@ -805,6 +842,44 @@
     });
   }
 
+  /* ---------- Starting Lineup (Edit Team) ---------- */
+
+  function assignStarter(playerId, code){
+    ensureAssignRow(playerId);
+    displacePlayerFromCode(code, 0, playerId);
+    data.assignments[playerId][0] = code;
+    saveData();
+    renderEdit();
+  }
+
+  function clearStarterSlot(code){
+    displacePlayerFromCode(code, 0, null);
+    saveData();
+    renderEdit();
+  }
+
+  function setPlayerAvailability(playerId, isUnavailable){
+    var pl = data.players.filter(function(p){return p.id===playerId;})[0];
+    if(!pl) return;
+    pl.unavailable = isUnavailable;
+    saveData();
+    renderEdit();
+  }
+
+  function applyStartingLineupToAllPeriods(){
+    var totalPeriods = data.periodLabels.length;
+    data.players.forEach(function(pl){
+      ensureAssignRow(pl.id);
+      var code0 = data.assignments[pl.id][0];
+      for(var p = 1; p < totalPeriods; p++){
+        data.assignments[pl.id][p] = code0;
+      }
+    });
+    saveData();
+    renderEdit();
+    renderMatch();
+  }
+
   function assignPlayerToSlot(playerId, code){
     var period = currentPeriod;
     ensureAssignRow(playerId);
@@ -897,7 +972,7 @@
     var picker = document.getElementById('slotPicker');
     if(!picker) return;
     var benchOptions = '', pitchOptions = '';
-    sortedPlayers().forEach(function(pl){
+    sortedPlayers().filter(function(pl){ return !pl.unavailable; }).forEach(function(pl){
       var status = positionStatusLabel(pl.id, currentPeriod);
       var isBench = status === 'bench';
       var style = isBench ? ' style="background-color:var(--bench-tint);color:var(--bench);font-weight:700;"' : '';
@@ -1079,6 +1154,45 @@
         '</div>';
     }).join('');
 
+    var pitch0 = getPitchForPeriod(0);
+    var reserveIds0 = sortIdsByName(getBenchForPeriod(0));
+    var availablePlayers = sortedPlayers().filter(function(pl){ return !pl.unavailable; });
+
+    var lineupRowsHtml = getStartingLineupPositions().map(function(code){
+      var selectedId = pitch0[code] || '';
+      var options = availablePlayers.map(function(pl){
+        return '<option value="'+pl.id+'"'+(pl.id===selectedId?' selected':'')+'>'+escapeHtml(pl.name)+'</option>';
+      }).join('');
+      return '<div class="lineup-row">'+
+        '<span class="lineup-pos">'+code+'</span>'+
+        '<select class="starterSelect" data-code="'+code+'"><option value="">— none —</option>'+options+'</select>'+
+        '</div>';
+    }).join('');
+
+    var filledCount = Object.keys(pitch0).length;
+    var reserveCount = reserveIds0.length;
+    var squadSize = data.players.length;
+    var countsOk = (filledCount + reserveCount) === squadSize;
+    var lineupStatusHtml = '<div class="lineup-status'+(countsOk?'':' warn')+'">'+
+      (countsOk
+        ? (filledCount+' of '+getStartingLineupPositions().length+' positions filled · '+reserveCount+' in reserve/unavailable')
+        : ('⚠ '+filledCount+' starting + '+reserveCount+' reserve/unavailable = '+(filledCount+reserveCount)+', but squad has '+squadSize+'. Check for stale position codes (e.g. left over from a previous formation).'))+
+      '</div>';
+
+    var reserveHtml = reserveIds0.length
+      ? reserveIds0.map(function(id){
+          var pl = data.players.filter(function(p){return p.id===id;})[0];
+          var isUnavail = pl && pl.unavailable;
+          return '<div class="reserve-row'+(isUnavail?' unavailable':'')+'">'+
+            '<span class="reserve-name">'+escapeHtml(nameOf(id))+'</span>'+
+            '<div class="reserve-toggle">'+
+              '<button type="button" class="reserve-btn'+(!isUnavail?' active':'')+'" data-id="'+id+'" data-status="reserve">Reserve</button>'+
+              '<button type="button" class="reserve-btn unavailable-btn'+(isUnavail?' active':'')+'" data-id="'+id+'" data-status="unavailable">Unavailable</button>'+
+            '</div>'+
+          '</div>';
+        }).join('')
+      : '<div class="empty-note">No reserves — squad size matches the starting XI.</div>';
+
     var periodRowsHtml = data.periodLabels.map(function(lbl, i){
       return '<div class="period-edit-row">'+
         '<span class="period-edit-idx">P'+(i+1)+'</span>'+
@@ -1103,6 +1217,14 @@
             return '<option value="'+key+'"'+(key===data.formation?' selected':'')+'>'+key+'</option>';
           }).join('')+
         '</select>'+
+      '</div>'+
+      '<div class="edit-section">'+
+        '<h2>Starting Lineup</h2>'+
+        lineupStatusHtml+
+        lineupRowsHtml+
+        '<button class="add-btn" id="applyStartingLineupBtn">Apply to all periods</button>'+
+        '<div class="field-label" style="margin-top:14px;">Reserve / Unavailable</div>'+
+        '<div id="reserveList">'+reserveHtml+'</div>'+
       '</div>'+
       '<div class="edit-section">'+
         '<details id="periodsDetails"'+(periodsExpanded?' open':'')+'>'+
@@ -1244,6 +1366,26 @@
       renderMatch();
     });
 
+    document.querySelectorAll('.starterSelect').forEach(function(sel){
+      sel.addEventListener('change', function(){
+        var code = this.dataset.code;
+        if(this.value) assignStarter(this.value, code);
+        else clearStarterSlot(code);
+      });
+    });
+
+    document.querySelectorAll('.reserve-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        setPlayerAvailability(this.dataset.id, this.dataset.status === 'unavailable');
+      });
+    });
+
+    document.getElementById('applyStartingLineupBtn').addEventListener('click', function(){
+      if(confirm('Apply this starting lineup to every period? This replaces any existing per-period substitution plan.')){
+        applyStartingLineupToAllPeriods();
+      }
+    });
+
     document.getElementById('copyBackupBtn').addEventListener('click', function(){
       var ta = document.getElementById('backupText');
       ta.select();
@@ -1261,7 +1403,7 @@
             parsed.periodsPerHalf = Math.round((parsed.periodLabels||[]).length / 2) || 3;
           }
           if(!parsed.formation || !FORMATIONS[parsed.formation]) parsed.formation = DEFAULT_FORMATION;
-          ensureCategoriesField(parsed.players);
+          ensurePlayerFields(parsed.players);
           data = parsed;
           currentPeriod = 0;
           saveData();
