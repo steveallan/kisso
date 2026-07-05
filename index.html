@@ -97,6 +97,19 @@
     font:600 13px -apple-system,sans-serif;background:#fff;color:var(--ink);
   }
 
+  .slot-picker-sheet{
+    position:fixed;left:50%;bottom:0;transform:translateX(-50%);
+    width:100%;max-width:480px;
+    display:flex;align-items:center;gap:8px;
+    background:var(--card);border-radius:16px 16px 0 0;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+    box-shadow:0 -4px 16px rgba(0,0,0,.18);z-index:25;
+  }
+  .slot-picker-sheet select{
+    flex:1;padding:9px 8px;border-radius:8px;border:1px solid var(--line);
+    font:600 13px -apple-system,sans-serif;background:#fff;color:var(--ink);
+  }
+
   .goal-log-card{margin-left:14px;margin-right:14px;}
   .goal-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);}
   .goal-row:first-of-type{border-top:none;}
@@ -155,7 +168,12 @@
   }
   .pitch-rows{position:relative;z-index:1;display:flex;flex-direction:column;gap:12px;}
   .pitch-row{display:flex;justify-content:space-evenly;}
-  .p-slot{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:80px;}
+  .p-slot{
+    display:flex;flex-direction:column;align-items:center;gap:4px;max-width:80px;
+    cursor:pointer;padding:4px;border-radius:10px;transition:background .12s;
+  }
+  .p-slot:active{background:rgba(255,255,255,.14);}
+  .p-slot.active .p-mark{box-shadow:0 0 0 3px #FFD400,0 2px 5px rgba(0,0,0,.28);}
   .p-mark{
     flex:0 0 auto;width:40px;height:40px;
     clip-path:polygon(30% 0%, 50% 14%, 70% 0%, 100% 20%, 80% 34%, 80% 100%, 20% 100%, 20% 34%, 0% 20%);
@@ -238,24 +256,10 @@
     width:100%;padding:10px;border-radius:8px;border:1.5px dashed var(--line);background:transparent;
     color:var(--navy);font:700 13px -apple-system,sans-serif;cursor:pointer;margin-top:2px;
   }
-  .grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;}
-  table.grid{border-collapse:collapse;width:100%;min-width:640px;}
-  table.grid th,table.grid td{padding:6px;border-bottom:1px solid var(--line);text-align:left;}
-  table.grid th{
-    font:700 10px/1.2 -apple-system,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-dim);
-    background:var(--ground);position:sticky;top:0;
-  }
-  table.grid td:first-child, table.grid th:first-child{
-    position:sticky;left:0;background:var(--ground);z-index:1;min-width:120px;
-  }
-  table.grid select{
-    width:100%;padding:6px 4px;border:1px solid var(--line);border-radius:6px;font:600 12px -apple-system,sans-serif;background:#fff;color:var(--ink);
-  }
-  .sub-count{font:700 11px -apple-system,sans-serif;text-align:center;}
-  .sub-count.ok{color:var(--navy);}
-  .sub-count.bad{color:var(--off);}
+  .period-edit-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .period-edit-idx{flex:0 0 26px;font:800 11px -apple-system,sans-serif;color:var(--ink-dim);text-align:center;}
   .period-label-input{
-    width:100%;padding:5px 4px;border:1px solid var(--line);border-radius:6px;font:600 11px -apple-system,sans-serif;text-align:center;
+    flex:1;min-width:0;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font:600 12px -apple-system,sans-serif;text-align:center;
   }
   .backup-box textarea{
     width:100%;min-height:90px;padding:8px;border:1px solid var(--line);border-radius:8px;
@@ -334,14 +338,13 @@
     <div class="goal-log"></div>
   </div>
   <div id="editView" style="display:none;" class="content"></div>
+  <div class="slot-picker-sheet" id="slotPicker" style="display:none;"></div>
 </div>
 <div class="save-toast" id="toast">Saved</div>
 
 <script>
 (function(){
   var STORAGE_KEY = 'matchdayLineupData_v1';
-
-  var POSITION_CODES = ['GK','CB1','CB2','LB','RB','LM','RM','CM1','CM2','CAM','ST1'];
 
   // Rows drawn top (attack) to bottom (goalkeeper) on the pitch graphic.
   var PITCH_ROWS = [
@@ -627,9 +630,88 @@
     }).map(function(pl){return pl.id;});
   }
 
+  /* ---------- Pitch slot assignment ---------- */
+
+  function displacePlayerFromCode(code, period, exceptId){
+    data.players.forEach(function(pl){
+      ensureAssignRow(pl.id);
+      if(pl.id !== exceptId && data.assignments[pl.id][period] === code){
+        data.assignments[pl.id][period] = 'SUB';
+      }
+    });
+  }
+
+  function assignPlayerToSlot(playerId, code){
+    var period = currentPeriod;
+    ensureAssignRow(playerId);
+    displacePlayerFromCode(code, period, playerId);
+    data.assignments[playerId][period] = code;
+    saveData();
+    renderMatch();
+  }
+
+  function clearSlot(code){
+    displacePlayerFromCode(code, currentPeriod, null);
+    saveData();
+    renderMatch();
+  }
+
+  function positionStatusLabel(id, period){
+    ensureAssignRow(id);
+    var v = data.assignments[id][period];
+    return v === 'SUB' ? 'bench' : ('currently ' + v);
+  }
+
+  function isPeriodBlank(p){
+    return data.players.every(function(pl){
+      ensureAssignRow(pl.id);
+      return data.assignments[pl.id][p] === 'SUB';
+    });
+  }
+
+  function maybeCopyForwardPeriod(p){
+    if(p <= 0) return;
+    if(!isPeriodBlank(p)) return;
+    if(isPeriodBlank(p - 1)) return;
+    data.players.forEach(function(pl){
+      ensureAssignRow(pl.id);
+      data.assignments[pl.id][p] = data.assignments[pl.id][p - 1];
+    });
+    saveData();
+  }
+
+  function showSlotPicker(code, slotEl){
+    document.querySelectorAll('.p-slot.active').forEach(function(el){ el.classList.remove('active'); });
+    slotEl.classList.add('active');
+    var picker = document.getElementById('slotPicker');
+    if(!picker) return;
+    var options = data.players.map(function(pl){
+      return '<option value="'+pl.id+'">'+escapeHtml(pl.name)+' ('+positionStatusLabel(pl.id, currentPeriod)+')</option>';
+    }).join('');
+    picker.innerHTML =
+      '<select id="slotSelect"><option value="" disabled selected>Assign this slot…</option>'+options+'<option value="__bench__">Leave empty (bench)</option></select>'+
+      '<button class="score-btn ghost" id="slotCancelBtn">Cancel</button>';
+    picker.style.display = 'flex';
+    document.getElementById('slotSelect').addEventListener('change', function(){
+      if(!this.value) return;
+      if(this.value === '__bench__'){ clearSlot(code); }
+      else { assignPlayerToSlot(this.value, code); }
+    });
+    document.getElementById('slotCancelBtn').addEventListener('click', hideSlotPicker);
+  }
+
+  function hideSlotPicker(){
+    var picker = document.getElementById('slotPicker');
+    if(picker){ picker.style.display = 'none'; picker.innerHTML = ''; }
+    document.querySelectorAll('.p-slot.active').forEach(function(el){ el.classList.remove('active'); });
+  }
+
   /* ---------- Match Day view ---------- */
 
   function renderMatch(){
+    hideSlotPicker();
+    maybeCopyForwardPeriod(currentPeriod);
+
     var host = document.getElementById('matchView');
     var p = currentPeriod;
     var isLast = p === data.periodLabels.length - 1;
@@ -641,7 +723,7 @@
         var id = pitch[code];
         var name = id ? nameOf(id) : '—';
         var markClass = code === 'GK' ? 'p-mark p-mark-gk' : 'p-mark';
-        return '<div class="p-slot"><div class="'+markClass+'">'+code+'</div><div class="p-name-pill">'+escapeHtml(name)+'</div></div>';
+        return '<div class="p-slot" data-code="'+code+'"><div class="'+markClass+'">'+code+'</div><div class="p-name-pill">'+escapeHtml(name)+'</div></div>';
       }).join('');
       return '<div class="pitch-row">'+slots+'</div>';
     }).join('');
@@ -738,6 +820,13 @@
     var nextBtn = document.getElementById('nextBtn');
     if(prevBtn) prevBtn.onclick = function(){ if(currentPeriod>0){currentPeriod--; renderMatch();} };
     if(nextBtn) nextBtn.onclick = function(){ if(currentPeriod<data.periodLabels.length-1){currentPeriod++; renderMatch();} };
+
+    document.querySelectorAll('.p-slot').forEach(function(slotEl){
+      slotEl.addEventListener('click', function(){
+        if(this.classList.contains('active')){ hideSlotPicker(); return; }
+        showSlotPicker(this.dataset.code, this);
+      });
+    });
   }
 
   function escapeHtml(s){
@@ -758,28 +847,12 @@
         '</div>';
     }).join('');
 
-    var headerCells = data.periodLabels.map(function(lbl, i){
-      return '<th>'+
-        '<input class="period-label-input periodHalfInput" data-idx="'+i+'" value="'+escapeHtml(data.periodHalves[i]||'')+'" style="margin-bottom:3px;">'+
+    var periodRowsHtml = data.periodLabels.map(function(lbl, i){
+      return '<div class="period-edit-row">'+
+        '<span class="period-edit-idx">P'+(i+1)+'</span>'+
+        '<input class="period-label-input periodHalfInput" data-idx="'+i+'" value="'+escapeHtml(data.periodHalves[i]||'')+'">'+
         '<input class="period-label-input periodLabelInput" data-idx="'+i+'" value="'+escapeHtml(lbl)+'">'+
-        '</th>';
-    }).join('');
-
-    var bodyRows = data.players.map(function(pl, r){
-      ensureAssignRow(pl.id);
-      var cells = data.periodLabels.map(function(_, p){
-        var val = data.assignments[pl.id][p];
-        var opts = POSITION_CODES.concat(['SUB']).map(function(code){
-          return '<option value="'+code+'" '+(code===val?'selected':'')+'>'+code+'</option>';
-        }).join('');
-        return '<td><select class="assignSelect" data-player="'+r+'" data-period="'+p+'">'+opts+'</select></td>';
-      }).join('');
-      return '<tr><td>'+escapeHtml(pl.name)+'</td>'+cells+'</tr>';
-    }).join('');
-
-    var subCountRow = data.periodLabels.map(function(_, p){
-      var count = getBenchForPeriod(p).length;
-      return '<td class="sub-count '+(count===2?'ok':'bad')+'">'+count+' sub'+(count===1?'':'s')+'</td>';
+        '</div>';
     }).join('');
 
     host.innerHTML =
@@ -790,11 +863,8 @@
         '<button class="add-btn" id="addPlayerBtn">+ Add player</button>'+
       '</div>'+
       '<div class="edit-section">'+
-        '<h2>Lineup by period</h2>'+
-        '<div class="grid-wrap"><table class="grid">'+
-          '<thead><tr><th>Player</th>'+headerCells+'</tr></thead>'+
-          '<tbody>'+bodyRows+'<tr><td><em style="font:600 11px -apple-system,sans-serif;color:var(--ink-dim);">Sub check</em></td>'+subCountRow+'</tr></tbody>'+
-        '</table></div>'+
+        '<h2>Periods</h2>'+
+        '<div id="periodEditList">'+periodRowsHtml+'</div>'+
       '</div>'+
       '<div class="edit-section backup-box">'+
         '<h2>Backup / restore</h2>'+
@@ -860,18 +930,6 @@
       });
     });
 
-    document.querySelectorAll('.assignSelect').forEach(function(sel){
-      sel.addEventListener('change', function(){
-        var playerIdx = +this.dataset.player;
-        var period = +this.dataset.period;
-        var id = data.players[playerIdx].id;
-        ensureAssignRow(id);
-        data.assignments[id][period] = this.value;
-        saveData();
-        renderEdit();
-      });
-    });
-
     document.getElementById('copyBackupBtn').addEventListener('click', function(){
       var ta = document.getElementById('backupText');
       ta.select();
@@ -912,6 +970,7 @@
     renderGoalLog();
   }
   function showEdit(){
+    hideSlotPicker();
     document.getElementById('matchView').style.display = 'none';
     document.getElementById('editView').style.display = '';
     document.getElementById('timerBar').style.display = 'none';
