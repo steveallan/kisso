@@ -28,6 +28,7 @@
     --bench:#5B6B8C;
     --bench-tint:#EDEFF6;
     --line:#DCE0EC;
+    --tabs-h:0px; /* set to 40px via JS once the tabs bar is unlocked/shown */
   }
   *{box-sizing:border-box;}
   body{
@@ -60,7 +61,7 @@
   .tab-btn.active{background:var(--navy);color:#fff;}
 
   .timerbar{
-    position:sticky;top:40px;z-index:19;
+    position:sticky;top:var(--tabs-h);z-index:19;
     display:flex;align-items:center;justify-content:space-between;gap:10px;
     padding:10px 14px;background:var(--card);
     border-top:1px solid var(--line);border-bottom:1px solid var(--line);
@@ -130,6 +131,23 @@
   .save-match-actions{display:flex;gap:8px;}
   .save-match-actions button{flex:1;}
 
+  .save-match-btn-row{display:flex;gap:8px;}
+  .save-match-btn-row button{flex:1;}
+  .past-match-row{padding:10px 0;border-top:1px solid var(--line);}
+  .past-match-row:first-of-type{border-top:none;padding-top:14px;}
+  .past-match-header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;}
+  .past-match-opp{font:800 14px -apple-system,sans-serif;color:var(--ink);}
+  .past-match-date{font:600 11px -apple-system,sans-serif;color:var(--ink-dim);}
+  .past-match-score{
+    font:800 18px -apple-system,sans-serif;font-variant-numeric:tabular-nums;color:var(--navy);margin-bottom:8px;
+  }
+  .past-match-scorers{display:flex;flex-wrap:wrap;gap:6px;}
+  .past-match-scorer-chip{
+    font:600 11px -apple-system,sans-serif;background:var(--ground);color:var(--ink-dim);
+    padding:4px 8px;border-radius:6px;
+  }
+  .past-match-scorer-chip.opp{background:var(--off-tint);color:#8C1220;}
+
   .goal-log-card{margin-left:14px;margin-right:14px;}
   .goal-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);}
   .goal-row:first-of-type{border-top:none;}
@@ -144,7 +162,7 @@
 
   /* Match day header / stepper */
   .stepper{
-    position:sticky;top:104px;z-index:18;
+    position:sticky;top:calc(var(--tabs-h) + 64px);z-index:18;
     background:var(--navy);color:#fff;
     padding:14px 14px 16px;
     display:flex;align-items:center;justify-content:space-between;gap:8px;
@@ -284,7 +302,7 @@
   }
   .edit-section summary::-webkit-details-marker{display:none;}
   .edit-section summary::after{
-    content:'▸';font-size:11px;color:var(--ink-dim);transition:transform .15s;
+    content:'▸';font-size:18px;line-height:1;color:var(--ink-dim);transition:transform .15s;
   }
   .edit-section details[open] summary{margin-bottom:10px;}
   .edit-section details[open] summary::after{transform:rotate(90deg);}
@@ -430,7 +448,11 @@
     <div class="goal-log"></div>
   </div>
   <div class="card goal-log-card" id="saveMatchCard">
-    <button class="btn primary" id="saveMatchBtn" style="width:100%;">Save Match</button>
+    <div class="save-match-btn-row">
+      <button class="btn primary" id="saveMatchBtn">Save Match</button>
+      <button class="btn ghost" id="pastMatchesBtn">Past Matches</button>
+    </div>
+    <div id="pastMatchesList" style="display:none;"></div>
   </div>
   <div id="editView" style="display:none;" class="content"></div>
   <div class="slot-picker-sheet" id="slotPicker" style="display:none;"></div>
@@ -896,6 +918,45 @@
     saveData();
     hideSaveMatchSheet();
     alert('Match saved: Kisso '+kissoCount+' – '+oppCount+' '+opponent+' ('+date+')');
+    if(document.getElementById('pastMatchesList').style.display !== 'none'){
+      renderPastMatchesList();
+    }
+  }
+
+  function togglePastMatches(){
+    var list = document.getElementById('pastMatchesList');
+    if(!list) return;
+    if(list.style.display === 'none'){
+      renderPastMatchesList();
+      list.style.display = '';
+    } else {
+      list.style.display = 'none';
+    }
+  }
+
+  function renderPastMatchesList(){
+    var list = document.getElementById('pastMatchesList');
+    if(!list) return;
+    if(!data.matchHistory.length){
+      list.innerHTML = '<div class="empty-note" style="padding-top:14px;">No matches saved yet.</div>';
+      return;
+    }
+    var rows = data.matchHistory.slice().reverse().map(function(m){
+      var scorerChips = (m.goals||[]).map(function(g){
+        var isOpp = g.team === 'opp';
+        var name = isOpp ? 'Opposition' : (g.playerId ? nameOf(g.playerId) : 'Unknown');
+        return '<span class="past-match-scorer-chip'+(isOpp?' opp':'')+'">'+escapeHtml(g.clockLabel)+' '+escapeHtml(name)+'</span>';
+      }).join('');
+      return '<div class="past-match-row">'+
+        '<div class="past-match-header">'+
+          '<span class="past-match-opp">vs '+escapeHtml(m.opponent)+'</span>'+
+          '<span class="past-match-date">'+escapeHtml(m.date)+'</span>'+
+        '</div>'+
+        '<div class="past-match-score">Kisso '+m.kissoScore+' – '+m.oppScore+' '+escapeHtml(m.opponent)+'</div>'+
+        (scorerChips ? '<div class="past-match-scorers">'+scorerChips+'</div>' : '<div class="empty-note">No goals logged.</div>')+
+      '</div>';
+    }).join('');
+    list.innerHTML = rows;
   }
 
   function ensureAssignRow(id){
@@ -1632,6 +1693,7 @@
     document.getElementById('scorePanel').style.display = 'none';
     document.getElementById('goalLogCard').style.display = 'none';
     document.getElementById('saveMatchCard').style.display = 'none';
+    document.getElementById('pastMatchesList').style.display = 'none';
     document.getElementById('tabEdit').classList.add('active');
     document.getElementById('tabMatch').classList.remove('active');
     renderEdit();
@@ -1647,6 +1709,7 @@
     if(logoTapTimestamps.length >= 5){
       logoTapTimestamps = [];
       document.getElementById('tabsBar').style.display = 'flex';
+      document.documentElement.style.setProperty('--tabs-h', '40px');
     }
   });
   document.getElementById('timerToggleBtn').addEventListener('click', toggleClock);
@@ -1664,6 +1727,7 @@
   document.getElementById('half1Btn').addEventListener('click', function(){ setHalf('1st Half'); });
   document.getElementById('half2Btn').addEventListener('click', function(){ setHalf('2nd Half'); });
   document.getElementById('saveMatchBtn').addEventListener('click', showSaveMatchSheet);
+  document.getElementById('pastMatchesBtn').addEventListener('click', togglePastMatches);
 
   renderClock();
   renderScoreboard();
