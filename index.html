@@ -60,10 +60,13 @@
   .timer-info{display:flex;flex-direction:column;}
   .timer-clock{font:800 26px/1.1 -apple-system,sans-serif;font-variant-numeric:tabular-nums;color:var(--navy);}
   .timer-clock.over{color:var(--off);}
-  .timer-half{
-    font:700 10px/1 -apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;
-    color:var(--ink-dim);margin-top:3px;
+  .half-toggle{display:flex;gap:4px;margin-top:5px;}
+  .half-btn{
+    padding:4px 8px;border-radius:6px;border:none;cursor:pointer;
+    font:700 10px/1 -apple-system,sans-serif;letter-spacing:.03em;text-transform:uppercase;
+    background:var(--navy-tint);color:var(--navy);
   }
+  .half-btn.active{background:var(--navy);color:#fff;}
   .timer-controls{display:flex;gap:8px;flex:0 0 auto;}
   .timer-btn{
     padding:9px 14px;border-radius:8px;border:none;cursor:pointer;
@@ -291,7 +294,10 @@
   <div class="timerbar" id="timerBar">
     <div class="timer-info">
       <div class="timer-clock" id="timerClock">00:00</div>
-      <div class="timer-half" id="timerHalfLabel"></div>
+      <div class="half-toggle" id="halfToggle">
+        <button class="half-btn active" id="half1Btn">1st Half</button>
+        <button class="half-btn" id="half2Btn">2nd Half</button>
+      </div>
     </div>
     <div class="timer-controls">
       <button class="timer-btn" id="timerToggleBtn">Start</button>
@@ -494,9 +500,20 @@
     renderClock();
   }
 
-  function updateTimerHalfLabel(){
-    var el = document.getElementById('timerHalfLabel');
-    if(el) el.textContent = data.periodHalves[currentPeriod] || '';
+  var currentHalf = '1st Half';
+
+  function setHalf(half){
+    if(currentHalf === half) return;
+    currentHalf = half;
+    resetClock(); // a new half starts its own 45-minute count
+    updateHalfButtons();
+  }
+
+  function updateHalfButtons(){
+    var b1 = document.getElementById('half1Btn');
+    var b2 = document.getElementById('half2Btn');
+    if(b1) b1.classList.toggle('active', currentHalf === '1st Half');
+    if(b2) b2.classList.toggle('active', currentHalf === '2nd Half');
   }
 
   /* ---------- Score & goal log ---------- */
@@ -537,7 +554,7 @@
     goalLog.push({
       id: makeId(),
       playerId: playerId,
-      half: data.periodHalves[currentPeriod] || '',
+      half: currentHalf,
       clockLabel: formatClock(clockSeconds)
     });
     hideScorerPicker();
@@ -610,7 +627,6 @@
     var isLast = p === data.periodLabels.length - 1;
     var pitch = getPitchForPeriod(p);
     var bench = getBenchForPeriod(p);
-    updateTimerHalfLabel();
 
     var pitchRowsHtml = PITCH_ROWS.map(function(row){
       var slots = row.map(function(code){
@@ -908,6 +924,8 @@
   document.getElementById('oppMinusBtn').addEventListener('click', function(){
     oppScore = Math.max(0, oppScore - 1); renderScoreboard();
   });
+  document.getElementById('half1Btn').addEventListener('click', function(){ setHalf('1st Half'); });
+  document.getElementById('half2Btn').addEventListener('click', function(){ setHalf('2nd Half'); });
 
   renderClock();
   renderScoreboard();
