@@ -308,7 +308,8 @@
     font:700 12px -apple-system,sans-serif;color:var(--ink-dim);margin-bottom:10px;
   }
   .lineup-status.warn{color:var(--off);}
-  .lineup-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .lineup-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;padding:4px;border-radius:8px;}
+  .lineup-row.empty{background:var(--off-tint);}
   .lineup-pos{
     flex:0 0 44px;text-align:center;font:800 11px -apple-system,sans-serif;letter-spacing:.02em;
     color:var(--royal);background:var(--navy-tint);padding:7px 0;border-radius:6px;
@@ -1161,12 +1162,23 @@
 
     var lineupRowsHtml = getStartingLineupPositions().map(function(code){
       var selectedId = pitch0[code] || '';
-      var options = availablePlayers.map(function(pl){
-        return '<option value="'+pl.id+'"'+(pl.id===selectedId?' selected':'')+'>'+escapeHtml(pl.name)+'</option>';
-      }).join('');
-      return '<div class="lineup-row">'+
+      var isEmpty = !selectedId;
+      var benchOptions = '', pitchOptions = '';
+      availablePlayers.forEach(function(pl){
+        var status = positionStatusLabel(pl.id, 0);
+        var isBench = status === 'bench';
+        var style = isBench ? ' style="background-color:var(--bench-tint);color:var(--bench);font-weight:700;"' : '';
+        var opt = '<option value="'+pl.id+'"'+(pl.id===selectedId?' selected':'')+style+'>'+escapeHtml(pl.name)+' ('+status+')</option>';
+        if(isBench) benchOptions += opt; else pitchOptions += opt;
+      });
+      return '<div class="lineup-row'+(isEmpty?' empty':'')+'">'+
         '<span class="lineup-pos">'+code+'</span>'+
-        '<select class="starterSelect" data-code="'+code+'"><option value="">— none —</option>'+options+'</select>'+
+        '<select class="starterSelect" data-code="'+code+'">'+
+          '<option value="" disabled'+(isEmpty?' selected':'')+'>Assign this slot…</option>'+
+          '<optgroup label="On the bench">'+benchOptions+'</optgroup>'+
+          '<optgroup label="On the pitch">'+pitchOptions+'</optgroup>'+
+          '<option value="__bench__">Leave empty (bench)</option>'+
+        '</select>'+
         '</div>';
     }).join('');
 
@@ -1379,7 +1391,7 @@
     document.querySelectorAll('.starterSelect').forEach(function(sel){
       sel.addEventListener('change', function(){
         var code = this.dataset.code;
-        if(this.value) assignStarter(this.value, code);
+        if(this.value && this.value !== '__bench__') assignStarter(this.value, code);
         else clearStarterSlot(code);
       });
     });
