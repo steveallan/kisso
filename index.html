@@ -83,23 +83,35 @@
     margin:0 0 10px;font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
   }
 
-  .line-group{margin-bottom:12px;}
-  .line-group:last-child{margin-bottom:0;}
-  .line-label{
-    font:700 10px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-bottom:6px;
+  .pitch{
+    position:relative;overflow:hidden;border-radius:12px;
+    background:linear-gradient(180deg,#2F7D4F,#215F40);
+    padding:18px 6px 14px;
   }
-  .row{
-    display:flex;align-items:center;gap:10px;
-    padding:9px 0;border-top:1px solid var(--line);
+  .pitch-halfway{position:absolute;left:6%;right:6%;top:52%;border-top:2px solid rgba(255,255,255,.32);}
+  .pitch-circle{
+    position:absolute;left:50%;top:52%;width:74px;height:74px;margin:-37px 0 0 -37px;
+    border:2px solid rgba(255,255,255,.32);border-radius:50%;
   }
-  .line-group .row:first-of-type{border-top:none;}
-  .pos-chip{
-    flex:0 0 46px;text-align:center;
-    background:var(--navy-tint);color:var(--royal);
-    font:800 12px/1 -apple-system,sans-serif;letter-spacing:.02em;
-    border-radius:7px;padding:6px 0;
+  .pitch-box{
+    position:absolute;left:50%;bottom:6px;width:124px;height:32px;margin-left:-62px;
+    border:2px solid rgba(255,255,255,.32);border-bottom:none;border-radius:4px 4px 0 0;
   }
-  .p-name{font:600 16px/1.2 -apple-system,sans-serif;}
+  .pitch-rows{position:relative;z-index:1;display:flex;flex-direction:column;gap:12px;}
+  .pitch-row{display:flex;justify-content:space-evenly;}
+  .p-slot{display:flex;flex-direction:column;align-items:center;gap:4px;max-width:80px;}
+  .p-mark{
+    flex:0 0 auto;width:36px;height:36px;border-radius:50%;
+    background:var(--navy);color:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font:800 11px/1 -apple-system,sans-serif;letter-spacing:.02em;
+    box-shadow:0 2px 5px rgba(0,0,0,.28);
+  }
+  .p-name-pill{
+    background:rgba(255,255,255,.95);color:var(--ink);
+    font:700 11px/1.2 -apple-system,sans-serif;padding:3px 7px;border-radius:8px;
+    white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  }
 
   .bench-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);}
   .bench-row:first-of-type{border-top:none;}
@@ -107,7 +119,9 @@
     flex:0 0 46px;text-align:center;background:var(--bench-tint);color:var(--bench);
     font:800 11px/1 -apple-system,sans-serif;letter-spacing:.04em;border-radius:7px;padding:6px 0;
   }
+  .p-name{font:600 16px/1.2 -apple-system,sans-serif;}
 
+  .section-divider{margin:14px 0 12px;border-top:1px dashed var(--line);}
   .next-title{font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:2px;}
   .next-range{font:600 13px/1 -apple-system,sans-serif;color:var(--ink-dim);margin-bottom:12px;}
   .chip-group{margin-bottom:10px;}
@@ -123,8 +137,8 @@
     display:flex;align-items:center;gap:6px;
     border-radius:20px;padding:7px 12px;font:600 14px/1 -apple-system,sans-serif;
   }
-  .pill.on{background:var(--on-tint);color:#7A551A;}
-  .pill.off{background:var(--off-tint);color:#7A362C;}
+  .pill.on{background:var(--on-tint);color:#145C34;}
+  .pill.off{background:var(--off-tint);color:#8C1220;}
   .pill .pos{font-weight:800;font-size:11px;opacity:.75;}
   .empty-note{font:500 14px/1.4 -apple-system,sans-serif;color:var(--ink-dim);}
   .swap-note{
@@ -142,6 +156,9 @@
   .edit-section{margin-bottom:18px;}
   .edit-section h2{
     margin:0 0 10px;font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
+  }
+  .field-label{
+    font:700 10px/1 -apple-system,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:8px;
   }
   .roster-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
   .roster-row input[type=text]{
@@ -217,20 +234,16 @@
 (function(){
   var STORAGE_KEY = 'matchdayLineupData_v1';
 
-  var GROUPS = [
-    {code:'GK', label:'Goalkeeper', line:'GK'},
-    {code:'CB1', label:'CB', line:'DEFENCE'},
-    {code:'CB2', label:'CB', line:'DEFENCE'},
-    {code:'LB', label:'LB', line:'DEFENCE'},
-    {code:'RB', label:'RB', line:'DEFENCE'},
-    {code:'LM', label:'LM', line:'MIDFIELD'},
-    {code:'RM', label:'RM', line:'MIDFIELD'},
-    {code:'CM1', label:'CM', line:'MIDFIELD'},
-    {code:'CM2', label:'CM', line:'MIDFIELD'},
-    {code:'CAM', label:'CAM', line:'MIDFIELD'},
-    {code:'ST1', label:'ST', line:'ATTACK'}
+  var POSITION_CODES = ['GK','CB1','CB2','LB','RB','LM','RM','CM1','CM2','CAM','ST1'];
+
+  // Rows drawn top (attack) to bottom (goalkeeper) on the pitch graphic.
+  var PITCH_ROWS = [
+    ['ST1'],
+    ['CAM'],
+    ['LM','CM1','CM2','RM'],
+    ['LB','CB1','CB2','RB'],
+    ['GK']
   ];
-  var POSITION_CODES = GROUPS.map(function(g){return g.code;});
 
   var DEFAULT_PLAYERS = [
     {id:'p1', name:'Emiline'}, {id:'p2', name:'Georgia'}, {id:'p3', name:'Saffron'},
@@ -343,11 +356,6 @@
     }).map(function(pl){return pl.id;});
   }
 
-  function posLabel(code){
-    var g = GROUPS.filter(function(x){return x.code===code;})[0];
-    return g ? g.label : code;
-  }
-
   /* ---------- Match Day view ---------- */
 
   function renderMatch(){
@@ -357,15 +365,19 @@
     var pitch = getPitchForPeriod(p);
     var bench = getBenchForPeriod(p);
 
-    var lineOrder = ['GK','DEFENCE','MIDFIELD','ATTACK'];
-    var linesHtml = lineOrder.map(function(line){
-      var rows = GROUPS.filter(function(g){return g.line===line;}).map(function(g){
-        var id = pitch[g.code];
+    var pitchRowsHtml = PITCH_ROWS.map(function(row){
+      var slots = row.map(function(code){
+        var id = pitch[code];
         var name = id ? nameOf(id) : '—';
-        return '<div class="row"><div class="pos-chip">'+g.code+'</div><div class="p-name">'+escapeHtml(name)+'</div></div>';
+        return '<div class="p-slot"><div class="p-mark">'+code+'</div><div class="p-name-pill">'+escapeHtml(name)+'</div></div>';
       }).join('');
-      return '<div class="line-group"><div class="line-label">'+line+'</div>'+rows+'</div>';
+      return '<div class="pitch-row">'+slots+'</div>';
     }).join('');
+    var linesHtml =
+      '<div class="pitch">'+
+        '<div class="pitch-box"></div><div class="pitch-circle"></div><div class="pitch-halfway"></div>'+
+        '<div class="pitch-rows">'+pitchRowsHtml+'</div>'+
+      '</div>';
 
     var benchHtml = bench.length
       ? bench.map(function(id){
@@ -442,8 +454,7 @@
       '</div>'+
       '<div class="content">'+
         '<div class="card"><h2>On Pitch</h2>'+linesHtml+'</div>'+
-        '<div class="card"><h2>Bench</h2>'+benchHtml+'</div>'+
-        '<div class="card">'+nextHtml+'</div>'+
+        '<div class="card"><h2>Bench</h2>'+benchHtml+'<div class="section-divider"></div>'+nextHtml+'</div>'+
       '</div>';
 
     var prevBtn = document.getElementById('prevBtn');
@@ -497,6 +508,7 @@
     host.innerHTML =
       '<div class="edit-section">'+
         '<h2>Squad</h2>'+
+        '<div class="field-label">Player Name</div>'+
         '<div id="rosterList">'+rosterHtml+'</div>'+
         '<button class="add-btn" id="addPlayerBtn">+ Add player</button>'+
       '</div>'+
