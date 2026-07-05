@@ -259,7 +259,12 @@
     margin:0;padding:2px 0;
     font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
     cursor:pointer;list-style:none;
-    display:flex;align-items:center;justify-content:space-between;
+    display:flex;align-items:center;gap:8px;
+  }
+  .edit-section summary .summary-label{flex:1;}
+  .edit-section summary .summary-badge{
+    font:800 11px -apple-system,sans-serif;letter-spacing:.03em;text-transform:none;color:var(--royal);
+    background:var(--navy-tint);padding:3px 8px;border-radius:6px;
   }
   .edit-section summary::-webkit-details-marker{display:none;}
   .edit-section summary::after{
@@ -1085,7 +1090,7 @@
     host.innerHTML =
       '<div class="edit-section">'+
         '<details id="squadDetails"'+(squadExpanded?' open':'')+'>'+
-          '<summary>Squad</summary>'+
+          '<summary><span class="summary-label">Squad</span></summary>'+
           '<div class="field-label">Player Name</div>'+
           '<div id="rosterList">'+rosterHtml+'</div>'+
           '<button class="add-btn" id="addPlayerBtn">+ Add player</button>'+
@@ -1101,7 +1106,9 @@
       '</div>'+
       '<div class="edit-section">'+
         '<details id="periodsDetails"'+(periodsExpanded?' open':'')+'>'+
-          '<summary>Periods</summary>'+
+          '<summary><span class="summary-label">Periods</span><span class="summary-badge">'+
+            data.periodsPerHalf+'/half · '+formatMinutes((HALF_LENGTH_SECONDS/60)/data.periodsPerHalf)+
+          '</span></summary>'+
           '<div class="periods-slider-row">'+
             '<input type="range" id="periodsPerHalfSlider" min="1" max="5" step="1" value="'+data.periodsPerHalf+'">'+
             '<div class="periods-slider-readout" id="periodsSliderReadout"></div>'+
@@ -1111,7 +1118,7 @@
       '</div>'+
       '<div class="edit-section backup-box">'+
         '<details id="backupDetails"'+(backupExpanded?' open':'')+'>'+
-          '<summary>Backup / restore</summary>'+
+          '<summary><span class="summary-label">Backup / restore</span></summary>'+
           '<textarea id="backupText" readonly></textarea>'+
           '<div class="backup-actions">'+
             '<button class="btn ghost" id="copyBackupBtn">Copy</button>'+
