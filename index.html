@@ -312,6 +312,7 @@
         <div class="score-num" id="kissoScoreNum">0</div>
         <div class="score-btnrow">
           <button class="score-btn" id="kissoGoalBtn">+ Goal</button>
+          <button class="score-btn ghost" id="kissoUndoBtn">Undo</button>
         </div>
       </div>
       <div class="score-sep">–</div>
@@ -564,6 +565,13 @@
 
   function removeGoal(id){
     goalLog = goalLog.filter(function(g){ return g.id !== id; });
+    renderScoreboard();
+    renderGoalLog();
+  }
+
+  function removeLastGoal(){
+    if(!goalLog.length) return;
+    goalLog.pop();
     renderScoreboard();
     renderGoalLog();
   }
@@ -918,6 +926,7 @@
   document.getElementById('timerToggleBtn').addEventListener('click', toggleClock);
   document.getElementById('timerResetBtn').addEventListener('click', resetClock);
   document.getElementById('kissoGoalBtn').addEventListener('click', showScorerPicker);
+  document.getElementById('kissoUndoBtn').addEventListener('click', removeLastGoal);
   document.getElementById('oppPlusBtn').addEventListener('click', function(){
     oppScore++; renderScoreboard();
   });
