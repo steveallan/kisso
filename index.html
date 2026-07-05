@@ -753,11 +753,21 @@
     slotEl.classList.add('active');
     var picker = document.getElementById('slotPicker');
     if(!picker) return;
-    var options = sortedPlayers().map(function(pl){
-      return '<option value="'+pl.id+'">'+escapeHtml(pl.name)+' ('+positionStatusLabel(pl.id, currentPeriod)+')</option>';
-    }).join('');
+    var benchOptions = '', pitchOptions = '';
+    sortedPlayers().forEach(function(pl){
+      var status = positionStatusLabel(pl.id, currentPeriod);
+      var isBench = status === 'bench';
+      var style = isBench ? ' style="background-color:var(--bench-tint);color:var(--bench);font-weight:700;"' : '';
+      var opt = '<option value="'+pl.id+'"'+style+'>'+escapeHtml(pl.name)+' ('+status+')</option>';
+      if(isBench) benchOptions += opt; else pitchOptions += opt;
+    });
     picker.innerHTML =
-      '<select id="slotSelect"><option value="" disabled selected>Assign this slot…</option>'+options+'<option value="__bench__">Leave empty (bench)</option></select>'+
+      '<select id="slotSelect">'+
+        '<option value="" disabled selected>Assign this slot…</option>'+
+        '<optgroup label="On the bench">'+benchOptions+'</optgroup>'+
+        '<optgroup label="On the pitch">'+pitchOptions+'</optgroup>'+
+        '<option value="__bench__">Leave empty (bench)</option>'+
+      '</select>'+
       '<button class="score-btn ghost" id="slotCancelBtn">Cancel</button>';
     picker.style.display = 'flex';
     document.getElementById('slotSelect').addEventListener('change', function(){
