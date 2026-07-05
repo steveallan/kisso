@@ -535,7 +535,7 @@
   function showScorerPicker(){
     var picker = document.getElementById('scorerPicker');
     if(!picker) return;
-    var options = data.players.map(function(pl){
+    var options = sortedPlayers().map(function(pl){
       return '<option value="'+pl.id+'">'+escapeHtml(pl.name)+'</option>';
     }).join('');
     picker.innerHTML =
@@ -612,6 +612,18 @@
     return p ? p.name : '';
   }
 
+  function sortedPlayers(){
+    return data.players.slice().sort(function(a,b){
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  function sortIdsByName(ids){
+    return ids.slice().sort(function(a,b){
+      return nameOf(a).localeCompare(nameOf(b));
+    });
+  }
+
   function getPitchForPeriod(p){
     // returns {code: playerId}
     var map = {};
@@ -685,7 +697,7 @@
     slotEl.classList.add('active');
     var picker = document.getElementById('slotPicker');
     if(!picker) return;
-    var options = data.players.map(function(pl){
+    var options = sortedPlayers().map(function(pl){
       return '<option value="'+pl.id+'">'+escapeHtml(pl.name)+' ('+positionStatusLabel(pl.id, currentPeriod)+')</option>';
     }).join('');
     picker.innerHTML =
@@ -716,7 +728,7 @@
     var p = currentPeriod;
     var isLast = p === data.periodLabels.length - 1;
     var pitch = getPitchForPeriod(p);
-    var bench = getBenchForPeriod(p);
+    var bench = sortIdsByName(getBenchForPeriod(p));
 
     var pitchRowsHtml = PITCH_ROWS.map(function(row){
       var slots = row.map(function(code){
@@ -748,21 +760,21 @@
       var pitchNow = pitch;
       var pitchNext = getPitchForPeriod(next);
 
-      var comingOn = data.players.filter(function(pl){
+      var comingOn = sortIdsByName(data.players.filter(function(pl){
         var wasOn = Object.keys(pitchNow).some(function(c){return pitchNow[c]===pl.id;});
         var willBeOn = Object.keys(pitchNext).some(function(c){return pitchNext[c]===pl.id;});
         return !wasOn && willBeOn;
-      }).map(function(pl){return pl.id;});
-      var comingOff = data.players.filter(function(pl){
+      }).map(function(pl){return pl.id;}));
+      var comingOff = sortIdsByName(data.players.filter(function(pl){
         var wasOn = Object.keys(pitchNow).some(function(c){return pitchNow[c]===pl.id;});
         var willBeOn = Object.keys(pitchNext).some(function(c){return pitchNext[c]===pl.id;});
         return wasOn && !willBeOn;
-      }).map(function(pl){return pl.id;});
-      var swapping = data.players.filter(function(pl){
+      }).map(function(pl){return pl.id;}));
+      var swapping = sortIdsByName(data.players.filter(function(pl){
         var wasOn = data.assignments[pl.id][p];
         var willBe = data.assignments[pl.id][next];
         return wasOn!=='SUB' && willBe!=='SUB' && wasOn!==willBe;
-      }).map(function(pl){return pl.id;});
+      }).map(function(pl){return pl.id;}));
 
       function posOfNext(id){
         return Object.keys(pitchNext).filter(function(c){return pitchNext[c]===id;})[0];
@@ -840,10 +852,10 @@
   function renderEdit(){
     var host = document.getElementById('editView');
 
-    var rosterHtml = data.players.map(function(pl, idx){
+    var rosterHtml = sortedPlayers().map(function(pl){
       return '<div class="roster-row">'+
-        '<input type="text" data-idx="'+idx+'" class="playerNameInput" value="'+escapeHtml(pl.name)+'">'+
-        '<button class="icon-btn removePlayerBtn" data-idx="'+idx+'">✕</button>'+
+        '<input type="text" data-id="'+pl.id+'" class="playerNameInput" value="'+escapeHtml(pl.name)+'">'+
+        '<button class="icon-btn removePlayerBtn" data-id="'+pl.id+'">✕</button>'+
         '</div>';
     }).join('');
 
@@ -879,8 +891,8 @@
 
     document.querySelectorAll('.playerNameInput').forEach(function(inp){
       inp.addEventListener('change', function(){
-        var idx = +this.dataset.idx;
-        var pl = data.players[idx];
+        var pl = data.players.filter(function(p){return p.id===inp.dataset.id;})[0];
+        if(!pl) return;
         var newName = this.value.trim() || pl.name;
         if(newName !== pl.name){
           pl.name = newName;
@@ -894,7 +906,8 @@
 
     document.querySelectorAll('.removePlayerBtn').forEach(function(btn){
       btn.addEventListener('click', function(){
-        var idx = +this.dataset.idx;
+        var idx = data.players.findIndex(function(p){return p.id===btn.dataset.id;});
+        if(idx === -1) return;
         var pl = data.players[idx];
         if(confirm('Remove '+pl.name+' from the squad?')){
           data.players.splice(idx,1);
