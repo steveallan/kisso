@@ -261,6 +261,11 @@
   .period-label-input{
     flex:1;min-width:0;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font:600 12px -apple-system,sans-serif;text-align:center;
   }
+  .periods-slider-row{margin-bottom:14px;}
+  .periods-slider-row input[type=range]{width:100%;accent-color:var(--navy);}
+  .periods-slider-readout{
+    font:700 12px -apple-system,sans-serif;color:var(--ink-dim);margin-top:4px;text-align:center;
+  }
   .backup-box textarea{
     width:100%;min-height:90px;padding:8px;border:1px solid var(--line);border-radius:8px;
     font:500 11px/1.4 ui-monospace,monospace;color:var(--ink-dim);background:var(--ground);resize:vertical;
@@ -395,7 +400,8 @@
       players: JSON.parse(JSON.stringify(DEFAULT_PLAYERS)),
       assignments: JSON.parse(JSON.stringify(DEFAULT_ASSIGN)),
       periodLabels: DEFAULT_PERIOD_LABELS.slice(),
-      periodHalves: DEFAULT_PERIOD_HALF.slice()
+      periodHalves: DEFAULT_PERIOD_HALF.slice(),
+      periodsPerHalf: 3
     };
   }
 
@@ -439,6 +445,9 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       if(raw){
         var d = migrateLegacyFormat(JSON.parse(raw));
+        if(!d.periodsPerHalf){
+          d.periodsPerHalf = Math.round((d.periodLabels||[]).length / 2) || 3;
+        }
         if(applyOneOffRenames(d)) localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
         return d;
       }
@@ -692,6 +701,53 @@
     saveData();
   }
 
+  function formatMinutes(m){
+    var rounded = Math.round(m * 10) / 10;
+    return (rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)) + ' min';
+  }
+
+  // True if any player has a real (non-SUB) assignment in any period from
+  // index `fromIndex` onward — used to warn before a shrink would discard it.
+  function periodsHaveAssignments(fromIndex){
+    return data.players.some(function(pl){
+      ensureAssignRow(pl.id);
+      var arr = data.assignments[pl.id];
+      for(var i = fromIndex; i < arr.length; i++){
+        if(arr[i] !== 'SUB') return true;
+      }
+      return false;
+    });
+  }
+
+  function regeneratePeriodStructure(perHalf){
+    var totalPeriods = perHalf * 2;
+    var duration = (HALF_LENGTH_SECONDS / 60) / perHalf;
+    var newLabels = [];
+    var newHalves = [];
+    for(var i = 0; i < totalPeriods; i++){
+      var start = Math.round(i * duration);
+      var end = Math.round((i + 1) * duration);
+      newLabels.push(start + '-' + end + ' min');
+      newHalves.push(i < perHalf ? '1st Half' : '2nd Half');
+    }
+    data.periodLabels = newLabels;
+    data.periodHalves = newHalves;
+    data.periodsPerHalf = perHalf;
+
+    data.players.forEach(function(pl){
+      ensureAssignRow(pl.id);
+      var arr = data.assignments[pl.id];
+      if(arr.length > totalPeriods){
+        data.assignments[pl.id] = arr.slice(0, totalPeriods);
+      } else {
+        while(arr.length < totalPeriods) arr.push('SUB');
+      }
+    });
+
+    if(currentPeriod >= totalPeriods) currentPeriod = totalPeriods - 1;
+    saveData();
+  }
+
   function showSlotPicker(code, slotEl){
     document.querySelectorAll('.p-slot.active').forEach(function(el){ el.classList.remove('active'); });
     slotEl.classList.add('active');
@@ -876,6 +932,10 @@
       '</div>'+
       '<div class="edit-section">'+
         '<h2>Periods</h2>'+
+        '<div class="periods-slider-row">'+
+          '<input type="range" id="periodsPerHalfSlider" min="1" max="5" step="1" value="'+data.periodsPerHalf+'">'+
+          '<div class="periods-slider-readout" id="periodsSliderReadout"></div>'+
+        '</div>'+
         '<div id="periodEditList">'+periodRowsHtml+'</div>'+
       '</div>'+
       '<div class="edit-section backup-box">'+
@@ -943,6 +1003,32 @@
       });
     });
 
+    var perHalfSlider = document.getElementById('periodsPerHalfSlider');
+    var perHalfReadout = document.getElementById('periodsSliderReadout');
+    function updatePerHalfReadout(v){
+      var duration = (HALF_LENGTH_SECONDS / 60) / v;
+      perHalfReadout.textContent = v + ' period' + (v === 1 ? '' : 's') + ' per half · ' +
+        formatMinutes(duration) + ' each · ' + (v * 2) + ' total periods';
+    }
+    updatePerHalfReadout(+perHalfSlider.value);
+    perHalfSlider.addEventListener('input', function(){
+      updatePerHalfReadout(+this.value);
+    });
+    perHalfSlider.addEventListener('change', function(){
+      var newPerHalf = +this.value;
+      if(newPerHalf === data.periodsPerHalf) return;
+      var totalPeriods = newPerHalf * 2;
+      var wouldLoseData = data.periodLabels.length > totalPeriods && periodsHaveAssignments(totalPeriods);
+      if(wouldLoseData && !confirm('Reducing periods will discard lineup data set for periods beyond '+totalPeriods+'. Continue?')){
+        this.value = data.periodsPerHalf;
+        updatePerHalfReadout(data.periodsPerHalf);
+        return;
+      }
+      regeneratePeriodStructure(newPerHalf);
+      renderEdit();
+      renderMatch();
+    });
+
     document.getElementById('copyBackupBtn').addEventListener('click', function(){
       var ta = document.getElementById('backupText');
       ta.select();
@@ -956,6 +1042,9 @@
       try{
         var parsed = JSON.parse(ta.value);
         if(parsed.players && parsed.assignments){
+          if(!parsed.periodsPerHalf){
+            parsed.periodsPerHalf = Math.round((parsed.periodLabels||[]).length / 2) || 3;
+          }
           data = parsed;
           currentPeriod = 0;
           saveData();
