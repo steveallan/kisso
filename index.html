@@ -601,6 +601,7 @@
   var data = loadData();
   var currentPeriod = 0; // 0-indexed, 0..5
   var squadExpanded = false; // Squad section starts collapsed on Edit Team
+  var backupExpanded = false; // Backup/restore section starts collapsed on Edit Team
 
   /* ---------- Match clock (45 min per half stopwatch) ---------- */
 
@@ -1106,18 +1107,23 @@
         '<div id="periodEditList">'+periodRowsHtml+'</div>'+
       '</div>'+
       '<div class="edit-section backup-box">'+
-        '<h2>Backup / restore</h2>'+
-        '<textarea id="backupText" readonly></textarea>'+
-        '<div class="backup-actions">'+
-          '<button class="btn ghost" id="copyBackupBtn">Copy</button>'+
-          '<button class="btn primary" id="restoreBackupBtn">Restore from text</button>'+
-        '</div>'+
+        '<details id="backupDetails"'+(backupExpanded?' open':'')+'>'+
+          '<summary>Backup / restore</summary>'+
+          '<textarea id="backupText" readonly></textarea>'+
+          '<div class="backup-actions">'+
+            '<button class="btn ghost" id="copyBackupBtn">Copy</button>'+
+            '<button class="btn primary" id="restoreBackupBtn">Restore from text</button>'+
+          '</div>'+
+        '</details>'+
       '</div>';
 
     document.getElementById('backupText').value = JSON.stringify(data, null, 2);
 
     document.getElementById('squadDetails').addEventListener('toggle', function(){
       squadExpanded = this.open;
+    });
+    document.getElementById('backupDetails').addEventListener('toggle', function(){
+      backupExpanded = this.open;
     });
 
     document.querySelectorAll('.playerNameInput').forEach(function(inp){
