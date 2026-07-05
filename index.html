@@ -645,6 +645,7 @@
   var squadExpanded = false; // Squad section starts collapsed on Edit Team
   var backupExpanded = false; // Backup/restore section starts collapsed on Edit Team
   var periodsExpanded = false; // Periods section starts collapsed on Edit Team
+  var startingLineupExpanded = false; // Starting Lineup section starts collapsed on Edit Team
 
   /* ---------- Match clock (45 min per half stopwatch) ---------- */
 
@@ -1223,12 +1224,14 @@
         '</select>'+
       '</div>'+
       '<div class="edit-section">'+
-        '<h2>Starting Lineup</h2>'+
-        lineupStatusHtml+
-        lineupRowsHtml+
-        '<button class="add-btn" id="applyStartingLineupBtn">Apply to all periods</button>'+
-        '<div class="field-label" style="margin-top:14px;">Reserve / Unavailable</div>'+
-        '<div id="reserveList">'+reserveHtml+'</div>'+
+        '<details id="startingLineupDetails"'+(startingLineupExpanded?' open':'')+'>'+
+          '<summary><span class="summary-label">Starting Lineup</span></summary>'+
+          lineupStatusHtml+
+          lineupRowsHtml+
+          '<button class="add-btn" id="applyStartingLineupBtn">Apply to all periods</button>'+
+          '<div class="field-label" style="margin-top:14px;">Reserve / Unavailable</div>'+
+          '<div id="reserveList">'+reserveHtml+'</div>'+
+        '</details>'+
       '</div>'+
       '<div class="edit-section">'+
         '<details id="periodsDetails"'+(periodsExpanded?' open':'')+'>'+
@@ -1263,6 +1266,9 @@
     });
     document.getElementById('periodsDetails').addEventListener('toggle', function(){
       periodsExpanded = this.open;
+    });
+    document.getElementById('startingLineupDetails').addEventListener('toggle', function(){
+      startingLineupExpanded = this.open;
     });
 
     document.querySelectorAll('.playerNameInput').forEach(function(inp){
