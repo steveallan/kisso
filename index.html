@@ -121,7 +121,12 @@
   }
   .p-name{font:600 16px/1.2 -apple-system,sans-serif;}
 
-  .section-divider{margin:14px 0 12px;border-top:1px dashed var(--line);}
+  .bench-next-grid{display:flex;gap:14px;align-items:flex-start;}
+  .bench-col{flex:0 0 108px;min-width:0;}
+  .bench-col .bench-row{gap:8px;}
+  .bench-col .bench-chip{flex-basis:34px;padding:5px 0;font-size:10px;}
+  .bench-col .p-name{font-size:14px;}
+  .next-col{flex:1;min-width:0;}
   .next-title{font:800 12px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:2px;}
   .next-range{font:600 13px/1 -apple-system,sans-serif;color:var(--ink-dim);margin-bottom:12px;}
   .chip-group{margin-bottom:10px;}
@@ -386,6 +391,7 @@
       : '<div class="empty-note">No one on the bench this period.</div>';
 
     var nextHtml;
+    var swapHtml = '';
     if(isLast){
       nextHtml = '<div class="fulltime">Full time — no further subs</div>';
     } else {
@@ -428,7 +434,6 @@
           }).join('')
         : '<span class="empty-note">No changes</span>';
 
-      var swapHtml = '';
       if(swapping.length){
         swapHtml = '<div class="swap-note">Also moving position: '+swapping.map(function(id){
           return '<b>'+escapeHtml(nameOf(id))+'</b> ('+data.assignments[id][p]+'→'+data.assignments[id][next]+')';
@@ -439,8 +444,7 @@
         '<div class="next-title">Next — Period '+(next+1)+'</div>'+
         '<div class="next-range">'+escapeHtml(data.periodHalves[next]||'')+' · '+escapeHtml(data.periodLabels[next]||'')+'</div>'+
         '<div class="chip-group"><div class="chip-label on">▲ Coming on</div><div class="chip-list">'+onHtml+'</div></div>'+
-        '<div class="chip-group"><div class="chip-label off">▼ Coming off</div><div class="chip-list">'+offHtml+'</div></div>'+
-        swapHtml;
+        '<div class="chip-group"><div class="chip-label off">▼ Coming off</div><div class="chip-list">'+offHtml+'</div></div>';
     }
 
     host.innerHTML =
@@ -454,7 +458,13 @@
       '</div>'+
       '<div class="content">'+
         '<div class="card"><h2>On Pitch</h2>'+linesHtml+'</div>'+
-        '<div class="card"><h2>Bench</h2>'+benchHtml+'<div class="section-divider"></div>'+nextHtml+'</div>'+
+        '<div class="card">'+
+          '<div class="bench-next-grid">'+
+            '<div class="bench-col"><h2>Bench</h2>'+benchHtml+'</div>'+
+            '<div class="next-col">'+nextHtml+'</div>'+
+          '</div>'+
+          swapHtml+
+        '</div>'+
       '</div>';
 
     var prevBtn = document.getElementById('prevBtn');
