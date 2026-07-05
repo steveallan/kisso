@@ -269,6 +269,10 @@
   .period-label-input{
     flex:1;min-width:0;padding:7px 6px;border:1px solid var(--line);border-radius:6px;font:600 12px -apple-system,sans-serif;text-align:center;
   }
+  #formationSelect{
+    width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);
+    font:600 14px -apple-system,sans-serif;background:#fff;color:var(--ink);
+  }
   .periods-slider-row{margin-bottom:14px;}
   .periods-slider-row input[type=range]{width:100%;accent-color:var(--navy);}
   .periods-slider-readout{
@@ -359,14 +363,100 @@
 (function(){
   var STORAGE_KEY = 'matchdayLineupData_v1';
 
-  // Rows drawn top (attack) to bottom (goalkeeper) on the pitch graphic.
-  var PITCH_ROWS = [
-    ['ST1'],
-    ['CAM'],
-    ['LM','CM1','CM2','RM'],
-    ['LB','CB1','CB2','RB'],
-    ['GK']
-  ];
+  // Each formation's rows are drawn top (attack) to bottom (goalkeeper) on
+  // the pitch graphic. Every formation totals 11 codes (10 outfield + GK).
+  var DEFAULT_FORMATION = '4-5-1';
+  var FORMATIONS = {
+    '4-5-1': {
+      rows: [
+        ['ST1'],
+        ['CAM'],
+        ['LM','CM1','CM2','RM'],
+        ['LB','CB1','CB2','RB'],
+        ['GK']
+      ]
+    },
+    '4-2-3-1': {
+      rows: [
+        ['ST1'],
+        ['LW','CAM','RW'],
+        ['CM1','CM2'],
+        ['LB','CB1','CB2','RB'],
+        ['GK']
+      ]
+    },
+    '4-3-3': {
+      rows: [
+        ['LW','ST1','RW'],
+        ['CM1','CM2','CM3'],
+        ['LB','CB1','CB2','RB'],
+        ['GK']
+      ]
+    },
+    '3-5-2': {
+      rows: [
+        ['ST1','ST2'],
+        ['LM','CM1','CM2','CM3','RM'],
+        ['CB1','CB2','CB3'],
+        ['GK']
+      ]
+    },
+    '4-4-2': {
+      rows: [
+        ['ST1','ST2'],
+        ['LM','CM1','CM2','RM'],
+        ['LB','CB1','CB2','RB'],
+        ['GK']
+      ]
+    },
+    '3-4-2-1': {
+      rows: [
+        ['ST1'],
+        ['CAM1','CAM2'],
+        ['LM','CM1','CM2','RM'],
+        ['CB1','CB2','CB3'],
+        ['GK']
+      ]
+    }
+  };
+  var FORMATION_KEYS = ['4-5-1','4-2-3-1','4-3-3','3-5-2','4-4-2','3-4-2-1'];
+
+  function getFormationRows(){
+    var f = FORMATIONS[data.formation];
+    return f ? f.rows : FORMATIONS[DEFAULT_FORMATION].rows;
+  }
+
+  function formationCodeSet(key){
+    var set = {};
+    (FORMATIONS[key] ? FORMATIONS[key].rows : []).forEach(function(row){
+      row.forEach(function(code){ set[code] = true; });
+    });
+    return set;
+  }
+
+  function formationChangeWouldBenchSomeone(newKey){
+    var valid = formationCodeSet(newKey);
+    return data.players.some(function(pl){
+      ensureAssignRow(pl.id);
+      return data.assignments[pl.id].some(function(code){
+        return code !== 'SUB' && !valid[code];
+      });
+    });
+  }
+
+  function switchFormation(newKey){
+    if(newKey === data.formation) return;
+    var valid = formationCodeSet(newKey);
+    data.players.forEach(function(pl){
+      ensureAssignRow(pl.id);
+      var arr = data.assignments[pl.id];
+      for(var i=0;i<arr.length;i++){
+        if(arr[i] !== 'SUB' && !valid[arr[i]]) arr[i] = 'SUB';
+      }
+    });
+    data.formation = newKey;
+    saveData();
+  }
 
   var DEFAULT_PLAYERS = [
     {id:'p1', name:'Emiline'}, {id:'p2', name:'Georgia'}, {id:'p3', name:'Saffron'},
@@ -417,7 +507,8 @@
       assignments: JSON.parse(JSON.stringify(DEFAULT_ASSIGN)),
       periodLabels: DEFAULT_PERIOD_LABELS.slice(),
       periodHalves: DEFAULT_PERIOD_HALF.slice(),
-      periodsPerHalf: 3
+      periodsPerHalf: 3,
+      formation: DEFAULT_FORMATION
     };
   }
 
@@ -464,6 +555,7 @@
         if(!d.periodsPerHalf){
           d.periodsPerHalf = Math.round((d.periodLabels||[]).length / 2) || 3;
         }
+        if(!d.formation || !FORMATIONS[d.formation]) d.formation = DEFAULT_FORMATION;
         ensureCategoriesField(d.players);
         if(applyOneOffRenames(d)) localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
         return d;
@@ -813,7 +905,7 @@
     var pitch = getPitchForPeriod(p);
     var bench = sortIdsByName(getBenchForPeriod(p));
 
-    var pitchRowsHtml = PITCH_ROWS.map(function(row){
+    var pitchRowsHtml = getFormationRows().map(function(row){
       var slots = row.map(function(code){
         var id = pitch[code];
         var name = id ? nameOf(id) : '—';
@@ -966,6 +1058,14 @@
         '<button class="add-btn" id="addPlayerBtn">+ Add player</button>'+
       '</div>'+
       '<div class="edit-section">'+
+        '<h2>Formation</h2>'+
+        '<select id="formationSelect">'+
+          FORMATION_KEYS.map(function(key){
+            return '<option value="'+key+'"'+(key===data.formation?' selected':'')+'>'+key+'</option>';
+          }).join('')+
+        '</select>'+
+      '</div>'+
+      '<div class="edit-section">'+
         '<h2>Periods</h2>'+
         '<div class="periods-slider-row">'+
           '<input type="range" id="periodsPerHalfSlider" min="1" max="5" step="1" value="'+data.periodsPerHalf+'">'+
@@ -1077,6 +1177,18 @@
       renderMatch();
     });
 
+    document.getElementById('formationSelect').addEventListener('change', function(){
+      var newKey = this.value;
+      if(newKey === data.formation) return;
+      if(formationChangeWouldBenchSomeone(newKey) && !confirm('Switching to '+newKey+' will bench any player whose current position doesn\'t exist in that formation. Continue?')){
+        this.value = data.formation;
+        return;
+      }
+      switchFormation(newKey);
+      renderEdit();
+      renderMatch();
+    });
+
     document.getElementById('copyBackupBtn').addEventListener('click', function(){
       var ta = document.getElementById('backupText');
       ta.select();
@@ -1093,6 +1205,7 @@
           if(!parsed.periodsPerHalf){
             parsed.periodsPerHalf = Math.round((parsed.periodLabels||[]).length / 2) || 3;
           }
+          if(!parsed.formation || !FORMATIONS[parsed.formation]) parsed.formation = DEFAULT_FORMATION;
           ensureCategoriesField(parsed.players);
           data = parsed;
           currentPeriod = 0;
