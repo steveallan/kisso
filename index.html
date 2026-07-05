@@ -1170,13 +1170,17 @@
     }).join('');
 
     var filledCount = Object.keys(pitch0).length;
-    var reserveCount = reserveIds0.length;
+    var reserveCount = reserveIds0.filter(function(id){
+      var pl = data.players.filter(function(p){return p.id===id;})[0];
+      return !(pl && pl.unavailable);
+    }).length;
+    var unavailableCount = reserveIds0.length - reserveCount;
     var squadSize = data.players.length;
-    var countsOk = (filledCount + reserveCount) === squadSize;
+    var countsOk = (filledCount + reserveCount + unavailableCount) === squadSize;
     var lineupStatusHtml = '<div class="lineup-status'+(countsOk?'':' warn')+'">'+
       (countsOk
-        ? (filledCount+' of '+getStartingLineupPositions().length+' positions filled · '+reserveCount+' in reserve/unavailable')
-        : ('⚠ '+filledCount+' starting + '+reserveCount+' reserve/unavailable = '+(filledCount+reserveCount)+', but squad has '+squadSize+'. Check for stale position codes (e.g. left over from a previous formation).'))+
+        ? (filledCount+' of '+getStartingLineupPositions().length+' positions filled · '+reserveCount+' in reserve · '+unavailableCount+' unavailable')
+        : ('⚠ '+filledCount+' starting + '+reserveCount+' reserve + '+unavailableCount+' unavailable = '+(filledCount+reserveCount+unavailableCount)+', but squad has '+squadSize+'. Check for stale position codes (e.g. left over from a previous formation).'))+
       '</div>';
 
     var reserveHtml = reserveIds0.length
