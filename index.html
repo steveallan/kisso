@@ -289,7 +289,7 @@
 
   var DEFAULT_PLAYERS = [
     {id:'p1', name:'Emiline'}, {id:'p2', name:'Georgia'}, {id:'p3', name:'Saffron'},
-    {id:'p4', name:'Madison X'}, {id:'p5', name:'Bec'}, {id:'p6', name:'Maddie A'},
+    {id:'p4', name:'Madison A'}, {id:'p5', name:'Bec'}, {id:'p6', name:'Maddie X'},
     {id:'p7', name:'Jacinta'}, {id:'p8', name:'Lexi'}, {id:'p9', name:'Mollie'},
     {id:'p10', name:'Alida'}, {id:'p11', name:'Annabelle'}, {id:'p12', name:'Amy'},
     {id:'p13', name:'Emily'}
@@ -354,7 +354,10 @@
   // 2026-07 request to rename Maddie/Madison takes effect without re-typing.
   // Persisted immediately below so this block can be deleted later without
   // the names reverting.
-  var ONE_OFF_RENAMES = {'Madison':'Madison X', 'Maddie':'Maddie A'};
+  var ONE_OFF_RENAMES = {
+    'Madison':'Madison A', 'Maddie':'Maddie X',
+    'Madison X':'Madison A', 'Maddie A':'Maddie X'
+  };
   function applyOneOffRenames(d){
     var changed = false;
     d.players.forEach(function(pl){
