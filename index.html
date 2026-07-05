@@ -108,6 +108,7 @@
     font:800 11px/1 -apple-system,sans-serif;letter-spacing:.02em;
     box-shadow:0 2px 5px rgba(0,0,0,.28);
   }
+  .p-mark-gk{background:#E85D9C;}
   .p-name-pill{
     background:rgba(255,255,255,.95);color:var(--ink);
     font:700 11px/1.2 -apple-system,sans-serif;padding:3px 7px;border-radius:8px;
@@ -145,7 +146,10 @@
   }
   .pill.on{background:var(--on-tint);color:#145C34;}
   .pill.off{background:var(--off-tint);color:#8C1220;}
-  .pill .pos{font-weight:800;font-size:11px;opacity:.75;}
+  .pill .pos{
+    font-weight:800;font-size:11px;letter-spacing:.02em;
+    background:rgba(0,0,0,.1);padding:2px 6px;border-radius:6px;
+  }
   .empty-note{font:500 14px/1.4 -apple-system,sans-serif;color:var(--ink-dim);}
   .swap-note{
     margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);
@@ -253,7 +257,7 @@
 
   var DEFAULT_PLAYERS = [
     {id:'p1', name:'Emiline'}, {id:'p2', name:'Georgia'}, {id:'p3', name:'Saffron'},
-    {id:'p4', name:'Madison'}, {id:'p5', name:'Bec'}, {id:'p6', name:'Maddie'},
+    {id:'p4', name:'Madison X'}, {id:'p5', name:'Bec'}, {id:'p6', name:'Maddie A'},
     {id:'p7', name:'Jacinta'}, {id:'p8', name:'Lexi'}, {id:'p9', name:'Mollie'},
     {id:'p10', name:'Alida'}, {id:'p11', name:'Annabelle'}, {id:'p12', name:'Amy'},
     {id:'p13', name:'Emily'}
@@ -314,10 +318,27 @@
     };
   }
 
+  // One-time rename applied to whatever's already saved on a device, so the
+  // 2026-07 request to rename Maddie/Madison takes effect without re-typing.
+  // Persisted immediately below so this block can be deleted later without
+  // the names reverting.
+  var ONE_OFF_RENAMES = {'Madison':'Madison X', 'Maddie':'Maddie A'};
+  function applyOneOffRenames(d){
+    var changed = false;
+    d.players.forEach(function(pl){
+      if(ONE_OFF_RENAMES[pl.name]){ pl.name = ONE_OFF_RENAMES[pl.name]; changed = true; }
+    });
+    return changed;
+  }
+
   function loadData(){
     try{
       var raw = localStorage.getItem(STORAGE_KEY);
-      if(raw) return migrateLegacyFormat(JSON.parse(raw));
+      if(raw){
+        var d = migrateLegacyFormat(JSON.parse(raw));
+        if(applyOneOffRenames(d)) localStorage.setItem(STORAGE_KEY, JSON.stringify(d));
+        return d;
+      }
     }catch(e){}
     return defaultData();
   }
@@ -375,7 +396,8 @@
       var slots = row.map(function(code){
         var id = pitch[code];
         var name = id ? nameOf(id) : '—';
-        return '<div class="p-slot"><div class="p-mark">'+code+'</div><div class="p-name-pill">'+escapeHtml(name)+'</div></div>';
+        var markClass = code === 'GK' ? 'p-mark p-mark-gk' : 'p-mark';
+        return '<div class="p-slot"><div class="'+markClass+'">'+code+'</div><div class="p-name-pill">'+escapeHtml(name)+'</div></div>';
       }).join('');
       return '<div class="pitch-row">'+slots+'</div>';
     }).join('');
@@ -545,7 +567,7 @@
       inp.addEventListener('change', function(){
         var idx = +this.dataset.idx;
         var pl = data.players[idx];
-        var newName = firstNameOnly(this.value) || pl.name;
+        var newName = this.value.trim() || pl.name;
         if(newName !== pl.name){
           pl.name = newName;
           saveData();
@@ -571,7 +593,7 @@
 
     document.getElementById('addPlayerBtn').addEventListener('click', function(){
       var input = prompt('Player name?');
-      var name = firstNameOnly(input);
+      var name = (input||'').trim();
       if(name){
         var id = makeId();
         data.players.push({id:id, name:name});
