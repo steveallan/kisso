@@ -72,6 +72,38 @@
   .timer-btn.running{background:var(--off);}
   .timer-btn.ghost{background:var(--navy-tint);color:var(--navy);}
 
+  .scorepanel{background:var(--card);border-bottom:1px solid var(--line);}
+  .scorebar{display:flex;align-items:flex-start;justify-content:center;gap:18px;padding:10px 14px;}
+  .score-side{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:74px;}
+  .score-label{
+    font:800 10px/1 -apple-system,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);
+  }
+  .score-num{font:800 30px/1 -apple-system,sans-serif;font-variant-numeric:tabular-nums;color:var(--navy);}
+  .score-sep{font:800 20px/1 -apple-system,sans-serif;color:var(--ink-dim);padding-top:20px;}
+  .score-btnrow{display:flex;gap:6px;}
+  .score-btn{
+    padding:6px 10px;border-radius:6px;border:none;cursor:pointer;
+    font:700 11px -apple-system,sans-serif;background:var(--navy);color:#fff;white-space:nowrap;
+  }
+  .score-btn.ghost{background:var(--navy-tint);color:var(--navy);}
+  .scorer-picker{
+    display:flex;align-items:center;gap:8px;padding:0 14px 12px;
+  }
+  .scorer-picker select{
+    flex:1;padding:9px 8px;border-radius:8px;border:1px solid var(--line);
+    font:600 13px -apple-system,sans-serif;background:#fff;color:var(--ink);
+  }
+
+  .goal-log-card{margin-left:14px;margin-right:14px;}
+  .goal-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);}
+  .goal-row:first-of-type{border-top:none;}
+  .goal-time{
+    flex:0 0 auto;font:800 11px/1 -apple-system,sans-serif;font-variant-numeric:tabular-nums;
+    color:var(--navy);background:var(--navy-tint);padding:5px 8px;border-radius:6px;white-space:nowrap;
+  }
+  .goal-scorer{flex:1;font:600 15px/1.2 -apple-system,sans-serif;}
+  .goal-remove{background:none;border:none;color:var(--off);font-size:16px;line-height:1;cursor:pointer;padding:2px 6px;}
+
   /* Match day header / stepper */
   .stepper{
     position:sticky;top:104px;z-index:18;
@@ -267,7 +299,33 @@
     </div>
   </div>
 
+  <div class="scorepanel" id="scorePanel">
+    <div class="scorebar">
+      <div class="score-side">
+        <div class="score-label">Kisso</div>
+        <div class="score-num" id="kissoScoreNum">0</div>
+        <div class="score-btnrow">
+          <button class="score-btn" id="kissoGoalBtn">+ Goal</button>
+        </div>
+      </div>
+      <div class="score-sep">–</div>
+      <div class="score-side">
+        <div class="score-label">Opp</div>
+        <div class="score-num" id="oppScoreNum">0</div>
+        <div class="score-btnrow">
+          <button class="score-btn" id="oppPlusBtn">+1</button>
+          <button class="score-btn ghost" id="oppMinusBtn">−1</button>
+        </div>
+      </div>
+    </div>
+    <div class="scorer-picker" id="scorerPicker" style="display:none;"></div>
+  </div>
+
   <div id="matchView"></div>
+  <div class="card goal-log-card" id="goalLogCard" style="display:none;">
+    <h2>Goals</h2>
+    <div class="goal-log"></div>
+  </div>
   <div id="editView" style="display:none;" class="content"></div>
 </div>
 <div class="save-toast" id="toast">Saved</div>
@@ -439,6 +497,80 @@
   function updateTimerHalfLabel(){
     var el = document.getElementById('timerHalfLabel');
     if(el) el.textContent = data.periodHalves[currentPeriod] || '';
+  }
+
+  /* ---------- Score & goal log ---------- */
+
+  var oppScore = 0;
+  var goalLog = []; // {id, playerId (null = unknown), half, clockLabel}
+
+  function renderScoreboard(){
+    var kEl = document.getElementById('kissoScoreNum');
+    var oEl = document.getElementById('oppScoreNum');
+    if(kEl) kEl.textContent = String(goalLog.length);
+    if(oEl) oEl.textContent = String(oppScore);
+  }
+
+  function showScorerPicker(){
+    var picker = document.getElementById('scorerPicker');
+    if(!picker) return;
+    var options = data.players.map(function(pl){
+      return '<option value="'+pl.id+'">'+escapeHtml(pl.name)+'</option>';
+    }).join('');
+    picker.innerHTML =
+      '<select id="scorerSelect"><option value="">Who scored?</option>'+options+'<option value="__unknown">Unknown</option></select>'+
+      '<button class="score-btn ghost" id="scorerCancelBtn">Cancel</button>';
+    picker.style.display = 'flex';
+    document.getElementById('scorerSelect').addEventListener('change', function(){
+      if(!this.value) return;
+      logGoal(this.value === '__unknown' ? null : this.value);
+    });
+    document.getElementById('scorerCancelBtn').addEventListener('click', hideScorerPicker);
+  }
+
+  function hideScorerPicker(){
+    var picker = document.getElementById('scorerPicker');
+    if(picker){ picker.style.display = 'none'; picker.innerHTML = ''; }
+  }
+
+  function logGoal(playerId){
+    goalLog.push({
+      id: makeId(),
+      playerId: playerId,
+      half: data.periodHalves[currentPeriod] || '',
+      clockLabel: formatClock(clockSeconds)
+    });
+    hideScorerPicker();
+    renderScoreboard();
+    renderGoalLog();
+  }
+
+  function removeGoal(id){
+    goalLog = goalLog.filter(function(g){ return g.id !== id; });
+    renderScoreboard();
+    renderGoalLog();
+  }
+
+  function renderGoalLog(){
+    var host = document.getElementById('goalLogCard');
+    if(!host) return;
+    if(!goalLog.length){
+      host.style.display = 'none';
+      return;
+    }
+    host.style.display = '';
+    var rows = goalLog.map(function(g){
+      var name = g.playerId ? nameOf(g.playerId) : 'Unknown';
+      return '<div class="goal-row">'+
+        '<div class="goal-time">'+escapeHtml(g.half)+' '+escapeHtml(g.clockLabel)+'</div>'+
+        '<div class="goal-scorer">⚽ '+escapeHtml(name)+'</div>'+
+        '<button class="goal-remove" data-id="'+g.id+'">✕</button>'+
+      '</div>';
+    }).join('');
+    host.querySelector('.goal-log').innerHTML = rows;
+    host.querySelectorAll('.goal-remove').forEach(function(btn){
+      btn.addEventListener('click', function(){ removeGoal(this.dataset.id); });
+    });
   }
 
   function ensureAssignRow(id){
@@ -749,14 +881,18 @@
     document.getElementById('matchView').style.display = '';
     document.getElementById('editView').style.display = 'none';
     document.getElementById('timerBar').style.display = '';
+    document.getElementById('scorePanel').style.display = '';
     document.getElementById('tabMatch').classList.add('active');
     document.getElementById('tabEdit').classList.remove('active');
     renderMatch();
+    renderGoalLog();
   }
   function showEdit(){
     document.getElementById('matchView').style.display = 'none';
     document.getElementById('editView').style.display = '';
     document.getElementById('timerBar').style.display = 'none';
+    document.getElementById('scorePanel').style.display = 'none';
+    document.getElementById('goalLogCard').style.display = 'none';
     document.getElementById('tabEdit').classList.add('active');
     document.getElementById('tabMatch').classList.remove('active');
     renderEdit();
@@ -765,8 +901,16 @@
   document.getElementById('tabEdit').addEventListener('click', showEdit);
   document.getElementById('timerToggleBtn').addEventListener('click', toggleClock);
   document.getElementById('timerResetBtn').addEventListener('click', resetClock);
+  document.getElementById('kissoGoalBtn').addEventListener('click', showScorerPicker);
+  document.getElementById('oppPlusBtn').addEventListener('click', function(){
+    oppScore++; renderScoreboard();
+  });
+  document.getElementById('oppMinusBtn').addEventListener('click', function(){
+    oppScore = Math.max(0, oppScore - 1); renderScoreboard();
+  });
 
   renderClock();
+  renderScoreboard();
   renderMatch();
 })();
 </script>
