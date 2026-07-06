@@ -472,7 +472,9 @@
   var cloudDocRef = null;
   var cloudReady = false;
   try {
-    if (typeof firebase !== 'undefined') {
+    if (typeof firebase === 'undefined') {
+      console.warn('[cloud-sync] "firebase" global not found — SDK script tags failed to load (network/blocker?)');
+    } else {
       firebase.initializeApp({
         apiKey: "AIzaSyCVHSpfg1o4eJK_-KsuVLcOj6FulXlSxco",
         authDomain: "kisso-selector.firebaseapp.com",
@@ -483,8 +485,9 @@
       });
       cloudDocRef = firebase.firestore().collection('kisso').doc('matchdayData');
       cloudReady = true;
+      console.log('[cloud-sync] Firebase initialized OK');
     }
-  } catch (e) { cloudReady = false; }
+  } catch (e) { cloudReady = false; console.error('[cloud-sync] init failed:', e); }
 
   // Each formation's rows are drawn top (attack) to bottom (goalkeeper) on
   // the pitch graphic. Every formation totals 11 codes (10 outfield + GK).
@@ -715,7 +718,13 @@
   function saveData(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     if(cloudReady && cloudDocRef){
-      cloudDocRef.set(data).catch(function(){ /* offline — will retry via Firestore's own queue */ });
+      cloudDocRef.set(data).then(function(){
+        console.log('[cloud-sync] write succeeded');
+      }).catch(function(err){
+        console.error('[cloud-sync] write failed:', err);
+      });
+    } else {
+      console.warn('[cloud-sync] skipped write — cloudReady:', cloudReady);
     }
     var t = document.getElementById('toast');
     t.classList.add('show');
@@ -724,16 +733,25 @@
   }
 
   function startCloudSync(){
-    if(!cloudReady || !cloudDocRef) return;
+    if(!cloudReady || !cloudDocRef){
+      console.warn('[cloud-sync] not starting sync — cloudReady:', cloudReady);
+      return;
+    }
     cloudDocRef.get().then(function(snap){
+      console.log('[cloud-sync] initial doc exists?', snap.exists);
       if(!snap.exists){
-        cloudDocRef.set(data).catch(function(){});
+        cloudDocRef.set(data).then(function(){
+          console.log('[cloud-sync] seed write succeeded');
+        }).catch(function(err){
+          console.error('[cloud-sync] seed write failed:', err);
+        });
       }
-    }).catch(function(){});
+    }).catch(function(err){ console.error('[cloud-sync] initial get failed:', err); });
 
     cloudDocRef.onSnapshot(function(snap){
       if(snap.metadata.hasPendingWrites) return; // our own optimistic local write echoing back
       if(!snap.exists) return;
+      console.log('[cloud-sync] received remote update');
       data = snap.data();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       if(document.getElementById('tabEdit').classList.contains('active')){
@@ -741,7 +759,7 @@
       } else {
         renderMatch();
       }
-    }, function(){ /* ignore listen errors, e.g. temporarily offline */ });
+    }, function(err){ console.error('[cloud-sync] listen error:', err); });
   }
 
   var data = loadData();
