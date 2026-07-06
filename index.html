@@ -460,9 +460,31 @@
 </div>
 <div class="save-toast" id="toast">Saved</div>
 
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   var STORAGE_KEY = 'matchdayLineupData_v1';
+
+  /* ---------- Cloud sync (Firebase Firestore) ---------- */
+  // Only available on the real deployed site — external network calls are
+  // blocked inside the Claude Artifact sandbox, so this silently no-ops there.
+  var cloudDocRef = null;
+  var cloudReady = false;
+  try {
+    if (typeof firebase !== 'undefined') {
+      firebase.initializeApp({
+        apiKey: "AIzaSyCVHSpfg1o4eJK_-KsuVLcOj6FulXlSxco",
+        authDomain: "kisso-selector.firebaseapp.com",
+        projectId: "kisso-selector",
+        storageBucket: "kisso-selector.firebasestorage.app",
+        messagingSenderId: "316619806000",
+        appId: "1:316619806000:web:477e4e16a8c310ff4224f5"
+      });
+      cloudDocRef = firebase.firestore().collection('kisso').doc('matchdayData');
+      cloudReady = true;
+    }
+  } catch (e) { cloudReady = false; }
 
   // Each formation's rows are drawn top (attack) to bottom (goalkeeper) on
   // the pitch graphic. Every formation totals 11 codes (10 outfield + GK).
@@ -692,10 +714,34 @@
 
   function saveData(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    if(cloudReady && cloudDocRef){
+      cloudDocRef.set(data).catch(function(){ /* offline — will retry via Firestore's own queue */ });
+    }
     var t = document.getElementById('toast');
     t.classList.add('show');
     clearTimeout(saveData._h);
     saveData._h = setTimeout(function(){t.classList.remove('show');},1100);
+  }
+
+  function startCloudSync(){
+    if(!cloudReady || !cloudDocRef) return;
+    cloudDocRef.get().then(function(snap){
+      if(!snap.exists){
+        cloudDocRef.set(data).catch(function(){});
+      }
+    }).catch(function(){});
+
+    cloudDocRef.onSnapshot(function(snap){
+      if(snap.metadata.hasPendingWrites) return; // our own optimistic local write echoing back
+      if(!snap.exists) return;
+      data = snap.data();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      if(document.getElementById('tabEdit').classList.contains('active')){
+        renderEdit();
+      } else {
+        renderMatch();
+      }
+    }, function(){ /* ignore listen errors, e.g. temporarily offline */ });
   }
 
   var data = loadData();
@@ -1732,6 +1778,7 @@
   renderClock();
   renderScoreboard();
   renderMatch();
+  startCloudSync();
 })();
 </script>
 </body>
